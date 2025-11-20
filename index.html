@@ -230,13 +230,13 @@
         let loveScoreInterval = null;
         let lastChatDuration = null;
         let leaderboardTimes = []; 
-        let originalClickHandler = null; // 存储原始点击处理器
+        let originalClickHandler = null; 
 
         // *** 音频控制 ***
         const audioFile = new Audio('hzy.m4a'); 
         let isPlaying = false;
         let progressInterval = null;
-        let audioPlayedOnce = false; // <<< 新增：标记音频是否首次成功播放
+        let audioPlayedOnce = false; 
 
         // --- 数据配置 ---
         const contentList = [
@@ -300,7 +300,6 @@
         }
 
         // --- 鼠标波纹效果函数 ---
-        // 原始的点击处理函数
         function handleImageClick(e) {
             if (e.target.closest('#topPanel') || e.target.closest('#audioProgressBar') || e.target.closest('.icon-btn') || e.target.closest('#leaderboardOverlay')) {
                 return;
@@ -310,7 +309,6 @@
                 createWaveRipples(e);
             }
         }
-        // 存储原始的点击处理函数
         originalClickHandler = handleImageClick;
 
 
@@ -397,15 +395,26 @@
             audioProgressBar.classList.add('hidden');
         }
 
-        // <<< 播放音频函数 - 增加了成功标记
+        // <<< 修改：播放音频函数 - 优化错误处理和 audioPlayedOnce 标记
         function startAudioPlayback() {
             audioFile.play().then(() => {
                 isPlaying = true;
                 startProgressTracking();
-                audioPlayedOnce = true; // 成功播放，设置标记
+                audioPlayedOnce = true; // 播放成功，设置标记
             }).catch(error => {
-                console.error("Audio playback failed, likely due to mobile autoplay policy:", error);
-                // 即使播放失败，我们也不在这里弹窗，因为逻辑会引导用户点击屏幕。
+                // 如果是用户拒绝自动播放（如iOS/Android首次点击），则静默处理
+                if (error.name === "NotAllowedError") {
+                    console.warn("Audio autoplay prevented by user agent. Waiting for user interaction.");
+                    // 即使播放失败，但用户已经尝试过交互，我们也应该将 audioPlayedOnce 设为 true，避免再次提示点击
+                    audioPlayedOnce = true; 
+                    isPlaying = false; // 确保isPlaying是false
+                    stopProgressTracking();
+                } else {
+                    console.error("Audio playback error:", error);
+                    audioPlayedOnce = true; // 其他错误也标记为已尝试
+                    isPlaying = false;
+                    stopProgressTracking();
+                }
             });
         }
         // >>> 播放音频函数
@@ -465,7 +474,7 @@
             }
         }
 
-        // <<< 对打模式开关 - 增加了手机端声音激活逻辑
+        // <<< 对打模式开关 - 优化手机端声音激活逻辑和提示
         function toggleDuelMode() {
             const buttonContainer = bottomDuelModeButton.querySelector('div');
             
@@ -476,8 +485,7 @@
                 stopAudioPlayback();      
                 isDuelMode = false;
                 
-                // 恢复点击波纹功能
-                contentWrapper.onclick = originalClickHandler;
+                contentWrapper.onclick = originalClickHandler; // 恢复原始点击处理器
                 
                 duelModeText.innerText = '对打模式';
                 buttonContainer.classList.remove('bg-green-600', 'animate-pulse');
@@ -494,40 +502,48 @@
                 buttonContainer.classList.remove('from-blue-400', 'to-cyan-300');
                 buttonContainer.classList.add('bg-green-600', 'animate-pulse');
                 
-                // 1. 先启动计时器和心动值积累 (与声音无关)
                 startTimer();
                 startLoveScoreIncrease(); 
 
                 if (!audioPlayedOnce) {
-                    // 2. 如果音频未播放过 (手机端默认情况)，提示用户点击屏幕
+                    // 如果音频从未成功播放过，提示用户点击屏幕来激活
                     showChat("🎧 提示：手机需点击屏幕任意位置才能激活声音。请点击屏幕！", 8000);
                     
-                    // 3. 临时覆盖点击事件，用于激活声音
+                    // 临时覆盖点击事件，用于第一次激活声音
                     contentWrapper.onclick = (e) => {
-                         // 检查点击的不是控制区
                          if (e.target.closest('#topPanel') || e.target.closest('#audioProgressBar') || e.target.closest('.icon-btn') || e.target.closest('#leaderboardOverlay')) {
                             return;
                          }
 
-                         // 恢复原始点击功能（波纹和心动值）
+                         // 恢复原始点击处理器（很重要，避免重复覆盖）
                          contentWrapper.onclick = originalClickHandler; 
+                         // 执行原始点击功能（波纹和心动值）
                          handleImageClick(e); 
                          
-                         // 尝试播放音频
+                         // 再次尝试播放音频
                          startAudioPlayback();
                          
-                         // 如果这次点击成功播放，给出提示
-                         if (audioPlayedOnce) {
-                             showChat("✅ 声音已激活，对打模式开始！", 4000);
-                         } else {
-                             // 理论上这个分支在 iOS 上不应该出现
-                             showChat("⚠️ 声音激活失败，请检查手机是否静音。", 4000);
-                         }
+                         // 根据 audioPlayedOnce 状态给出反馈
+                         setTimeout(() => { // 稍作延迟，让 audioFile.play() Promise 有时间解析
+                             if (audioPlayedOnce && audioFile.paused === false) { // 确保真的在播放
+                                 showChat("✅ 声音已激活，对打模式开始！", 4000);
+                             } else {
+                                 // 如果 still not playing after user click
+                                 showChat("⚠️ 声音激活失败，请检查手机是否静音，或尝试再次点击。", 5000);
+                             }
+                         }, 200); // 200ms 延迟
                     };
                 } else {
-                    // 4. 如果音频播放过 (电脑端或手机端第二次)，可以直接启动
+                    // 如果音频之前成功播放过（电脑端），或者用户已经进行过激活点击
                     startAudioPlayback();
-                    showChat("对打模式已开启！录音开始播放，心动值正在积累... 💖", 4000);
+                    // 稍作延迟，根据实际播放状态给出反馈
+                    setTimeout(() => {
+                        if (audioFile.paused === false) { // 确保真的在播放
+                            showChat("对打模式已开启！录音开始播放，心动值正在积累... 💖", 4000);
+                        } else {
+                            showChat("⚠️ 录音无法播放，请检查手机是否静音。", 5000);
+                        }
+                    }, 200);
                 }
             }
         }
@@ -584,7 +600,6 @@
         function initApp() {
             renderContent(0); 
             showChat(contentList[0].message, 4000);
-            // 确保页面加载时，使用正常的点击处理函数
             contentWrapper.onclick = originalClickHandler; 
         }
         window.onload = initApp;
