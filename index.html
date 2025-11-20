@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Ideal Girlfriend - Ultimate Immersive Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+        
+        body {
+            background-color: #0f0f0f;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* 确保页面至少有手机的高度，可以完整显示 */
+            min-height: 100vh; 
+            overflow: hidden;
+        }
+
+        /* 手机框架 - 核心修改：缩小尺寸以适应100%缩放下的屏幕 */
+        .phone-frame {
+            width: 340px; /* 缩小宽度 */
+            height: 700px; /* 缩小高度 */
+            background: #000; 
+            border-radius: 30px; 
+            /* 阴影和边框也随之调整，以适配新尺寸 */
+            box-shadow: 0 0 0 7px #2c2c2c, 0 15px 40px rgba(0,0,0,0.8);
+            position: relative;
+            overflow: hidden;
+            border: 2px solid rgba(255, 255, 255, 0.05); 
+        }
+
+        /* 视频/图片通用样式 - 保持 contain 确保内容完整不裁剪 */
+        .full-content {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; 
+            object-position: center; 
+            filter: brightness(0.98);
+        }
+
+        /* 其他样式保持不变 */
+        .glass-panel {
+            background: rgba(20, 20, 20, 0.4);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .curtain-overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(150, 50, 255, 1) 0%, rgba(0, 0, 0, 1) 100%); 
+            z-index: 60; 
+            transition: transform 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55); 
+            transform: translateY(-100%); 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            font-size: 24px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.5); 
+        }
+        .curtain-visible {
+            transform: translateY(0); 
+        }
+        
+        .chat-bubble-hidden { transform: translateY(15px); opacity: 0; pointer-events: none; }
+        .chat-bubble-visible { transform: translateY(0); opacity: 1; pointer-events: auto; }
+
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0) 100%); 
+            border: 1px solid rgba(255, 255, 255, 0.4); 
+            transform: scale(0);
+            z-index: 50; 
+            pointer-events: none;
+            animation: ripple-wave 1s ease-out forwards;
+        }
+
+        @keyframes ripple-wave {
+            0% { 
+                transform: scale(0); 
+                opacity: 1; 
+                border-color: rgba(255, 255, 255, 0.4);
+            }
+            50% { 
+                opacity: 0.6;
+                border-color: rgba(255, 255, 255, 0.2);
+            }
+            100% { 
+                transform: scale(3);
+                opacity: 0; 
+                border-color: rgba(255, 255, 255, 0);
+            }
+        }
+
+        #audioProgressBar {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 90%; 
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            cursor: pointer;
+            margin: 0 5%;
+            position: absolute; 
+            top: 60px; 
+            z-index: 45;
+        }
+
+        #audioProgressBar::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff5086; 
+            cursor: pointer;
+            box-shadow: 0 0 2px rgba(0,0,0,0.5);
+        }
+
+        #audioProgressBar::-moz-range-thumb {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff5086; 
+            cursor: pointer;
+        }
+        
+        .leaderboard-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 70;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body oncontextmenu="return false;"> 
+    <div class="phone-frame relative">
+        
+        <div id="curtain" class="curtain-overlay">
+             <span class="animate-pulse">正在为你更换显示内容...</span>
+        </div>
+        
+        <div id="leaderboardOverlay" class="leaderboard-overlay">
+            <div class="glass-panel w-full max-w-xs p-5 rounded-xl text-white">
+                <h3 class="text-xl font-bold text-center mb-4 text-pink-400">🏅 对打排行榜 🏅</h3>
+                <ul id="leaderboardList" class="space-y-2 text-sm">
+                    </ul>
+                <button onclick="hideLeaderboard()" class="w-full mt-6 py-2 bg-pink-500 hover:bg-pink-600 rounded-lg font-bold transition-colors">关闭</button>
+            </div>
+        </div>
+
+        <div id="contentWrapper" class="absolute inset-0 w-full h-full bg-black" onclick="handleImageClick(event)">
+             </div>
+
+        <div class="absolute bottom-0 w-full h-1/2 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none z-30"></div>
+
+        <div id="topPanel" class="absolute top-4 w-full px-4 z-40 transition-all duration-300">
+             <div class="flex items-center justify-center">
+                <div id="timerDisplay" class="glass-panel text-pink-400 text-sm font-bold tracking-wider py-1 px-3 rounded-full hidden">00:00</div>
+             </div>
+        </div>
+        
+        <input type="range" id="audioProgressBar" value="0" min="0" step="0.1" class="hidden">
+
+
+        <div class="absolute bottom-8 w-full px-4 z-40">
+            
+            <div id="chatBubble" class="mb-6 glass-panel rounded-2xl p-3 transform transition-all duration-500 chat-bubble-hidden">
+                <p class="text-white text-sm font-light leading-relaxed">
+                    <span class="text-pink-400 font-bold">秀敏:</span> 
+                    <span id="chatText">你好，今天过得开心吗？</span>
+                </p>
+            </div>
+            
+            <div class="flex justify-between items-center px-0">
+                <button onclick="changeContent()" class="icon-btn glass-panel w-20 h-12 rounded-xl flex flex-col justify-center items-center group shadow-xl">
+                    <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-pink-500 to-violet-500 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                        <i class="fas fa-image text-white text-xs"></i>
+                    </div>
+                    <span class="text-xs text-gray-200 mt-0.5">更换显示 (7)</span> 
+                </button>
+
+                <button id="bottomDuelModeButton" onclick="toggleDuelMode()" class="icon-btn glass-panel w-20 h-12 rounded-xl flex flex-col justify-center items-center group shadow-xl">
+                    <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-blue-400 to-cyan-300 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                        <i class="fas fa-video text-white text-xs"></i>
+                    </div>
+                    <span id="duelModeText" class="text-xs text-gray-200 mt-0.5">对打模式</span>
+                </button>
+                
+                <button onclick="showLeaderboard()" class="icon-btn glass-panel w-20 h-12 rounded-xl flex flex-col justify-center items-center group shadow-xl">
+                    <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-yellow-500 to-orange-400 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                        <i class="fas fa-trophy text-white text-xs"></i>
+                    </div>
+                    <span class="text-xs text-gray-200 mt-0.5">对打排行榜</span>
+                </button>
+            </div>
+
+            <div class="w-1/3 h-1 bg-white/30 rounded-full mx-auto mt-4"></div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- 全局变量和元素获取 ---
+        let loveScore = 141; 
+        const contentWrapper = document.getElementById('contentWrapper');
+        const chatBubble = document.getElementById('chatBubble');
+        const chatText = document.getElementById('chatText');
+        const curtain = document.getElementById('curtain');
+        const bottomDuelModeButton = document.getElementById('bottomDuelModeButton');
+        const duelModeText = document.getElementById('duelModeText');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const audioProgressBar = document.getElementById('audioProgressBar'); 
+        const leaderboardOverlay = document.getElementById('leaderboardOverlay');
+        const leaderboardList = document.getElementById('leaderboardList');
+
+        let currentContentIndex = 0;
+        let isDuelMode = false;
+        let startTime = null;
+        let timerInterval = null;
+        let loveScoreInterval = null;
+        let lastChatDuration = null;
+        let leaderboardTimes = []; 
+
+        // *** 音频控制 ***
+        const audioFile = new Audio('hzy.m4a'); // 确保文件存在
+        let isPlaying = false;
+        let progressInterval = null;
+
+        // --- 数据配置 ---
+        const contentList = [
+            { type: 'image', src: 'girl_office.jpg', message: "这身还可以吗" },
+            { type: 'image', src: 'girl_black_stockings.jpg', message: "没有了黑丝的束缚，是不是看起来更清爽？但我的心跳还在加速哦。💖" },
+            { type: 'image', src: 'girl_pleated_skirt.jpg', message: "红色的毛衣和短裙，是给你准备的惊喜。你看到我为你露出的心意了吗？🔥" },
+            { type: 'image', src: 'girl_casual_knit.jpg', message: "泡在浴缸里，穿着你的T恤，这种隐约可见的感觉是不是很让人心动？V！✌️" },
+            { type: 'image', src: 'girl_long_pants.jpg', message: "深夜，台灯的光影下，我的腿上还有水珠。你喜欢我这样微微咬嘴唇吗？💋" },
+            { type: 'image', src: 'girl_dynamic_pose.jpg', message: "只露出腿，是不是更有想象空间？快来掀开枕头看看我在想什么呀...🤫" },
+            // 视频文件
+            { type: 'video', src: 'girl_video.mp4', message: "这个视频是你专门为我拍的吗？我好喜欢这个动感！😍" } 
+        ];
+
+        // --- 内容切换函数 ---
+
+        function renderContent(index) {
+            contentWrapper.innerHTML = ''; // 清空现有内容
+            const content = contentList[index];
+
+            if (content.type === 'image') {
+                const img = document.createElement('img');
+                img.src = content.src;
+                img.className = 'full-content';
+                img.alt = 'Ideal Girlfriend Image';
+                contentWrapper.appendChild(img);
+                img.oncontextmenu = () => false; 
+            } else if (content.type === 'video') {
+                const video = document.createElement('video');
+                video.src = content.src;
+                video.className = 'full-content';
+                video.loop = true;      // 循环播放
+                video.muted = true;     // 静音
+                video.playsInline = true; 
+                video.autoplay = true;  
+                
+                video.play().catch(e => console.log("Video autoplay blocked."));
+                
+                contentWrapper.appendChild(video);
+            }
+        }
+        
+        function changeContent() {
+            curtain.classList.add('curtain-visible');
+            showChat("正在为你更换显示内容...", 1000); 
+
+            setTimeout(() => {
+                currentContentIndex = (currentContentIndex + 1) % contentList.length; 
+                
+                renderContent(currentContentIndex);
+                
+                setTimeout(() => {
+                    curtain.classList.remove('curtain-visible');
+                    showChat(contentList[currentContentIndex].message, 4000);
+                }, 600); 
+
+            }, 1200); 
+        }
+
+        // --- 鼠标波纹效果函数 ---
+        function handleImageClick(e) {
+            // 确保点击的不是控制元素
+            if (e.target.closest('#topPanel') || e.target.closest('#audioProgressBar') || e.target.closest('.icon-btn') || e.target.closest('#leaderboardOverlay')) {
+                return;
+            }
+
+            if (e.target.closest('#contentWrapper')) {
+                createWaveRipples(e);
+            }
+        }
+
+        function createWaveRipples(e) {
+            const rect = contentWrapper.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const numberOfRipples = 3;
+            const initialSize = 80;
+            const animationDuration = 1000;
+
+            for (let i = 0; i < numberOfRipples; i++) {
+                const ripple = document.createElement('div');
+                ripple.className = 'ripple';
+                
+                const delay = i * (animationDuration / numberOfRipples / 2);
+                ripple.style.animationDelay = `${delay}ms`;
+
+                const currentSize = initialSize + i * 40;
+                ripple.style.width = `${currentSize}px`;
+                ripple.style.height = `${currentSize}px`;
+                ripple.style.left = `${x - currentSize / 2}px`;
+                ripple.style.top = `${y - currentSize / 2}px`;
+                
+                contentWrapper.appendChild(ripple);
+
+                ripple.addEventListener('animationend', () => {
+                    ripple.remove();
+                });
+            }
+            
+            if (!isDuelMode) {
+                 updateLoveScore(+1);
+            }
+            
+            const randomRippleResponses = ["别...别乱点啦！", "嘻嘻，被你发现了！", "嗯？怎么啦？", "你是不是在逗我呀？"];
+            showChat(randomRippleResponses[Math.floor(Math.random() * randomRippleResponses.length)], 1500);
+        }
+        
+        // --- 计时器/对打模式/音频控制 ---
+        
+        audioFile.onloadedmetadata = () => {
+            audioProgressBar.max = audioFile.duration;
+            updateProgress();
+        };
+        
+        audioFile.onended = () => {
+            if (isDuelMode) {
+                 audioFile.currentTime = 0;
+                 startAudioPlayback();
+            } else {
+                 stopAudioPlayback();
+            }
+        };
+
+        audioProgressBar.oninput = () => {
+            if (audioFile.duration) {
+                audioFile.currentTime = audioProgressBar.value;
+                if (!isPlaying && isDuelMode) {
+                    audioFile.play().catch(e => console.error("Resume playback failed:", e));
+                    isPlaying = true;
+                }
+            }
+        };
+
+        function updateProgress() {
+            if (!audioFile.paused && audioFile.duration) {
+                audioProgressBar.value = audioFile.currentTime;
+                const progressPercent = (audioFile.currentTime / audioFile.duration) * 100;
+                audioProgressBar.style.background = `linear-gradient(to right, #ff5086 0%, #ff5086 ${progressPercent}%, rgba(255, 255, 255, 0.2) ${progressPercent}%, rgba(255, 255, 255, 0.2) 100%)`;
+            }
+        }
+        
+        function startProgressTracking() {
+            if (progressInterval) clearInterval(progressInterval);
+            progressInterval = setInterval(updateProgress, 100);
+            audioProgressBar.classList.remove('hidden');
+        }
+
+        function stopProgressTracking() {
+            if (progressInterval) clearInterval(progressInterval);
+            progressInterval = null;
+            audioProgressBar.classList.add('hidden');
+        }
+
+        function startAudioPlayback() {
+            if (!isPlaying) {
+                audioFile.play().then(() => {
+                    isPlaying = true;
+                    startProgressTracking();
+                }).catch(error => {
+                    console.error("Audio playback failed:", error);
+                    showChat("警告：播放录音失败，请检查文件路径（hzy.m4a）或浏览器限制。", 5000);
+                });
+            }
+        }
+
+        function stopAudioPlayback() {
+            if (isPlaying) {
+                audioFile.pause();
+                audioFile.currentTime = 0;
+                isPlaying = false;
+                stopProgressTracking();
+            }
+        }
+
+        function startLoveScoreIncrease() {
+            if (loveScoreInterval) return;
+            loveScoreInterval = setInterval(() => {
+                updateLoveScore(+1);
+            }, 100); 
+        }
+
+        function stopLoveScoreIncrease() {
+            if (loveScoreInterval) {
+                clearInterval(loveScoreInterval);
+                loveScoreInterval = null;
+            }
+        }
+        
+        function formatTime(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+            const seconds = String(totalSeconds % 60).padStart(2, '0');
+            return `${minutes}:${seconds}`;
+        }
+
+        function updateTimer() {
+            const elapsed = Date.now() - startTime;
+            timerDisplay.innerText = formatTime(elapsed);
+        }
+
+        function startTimer() {
+            startTime = Date.now();
+            timerDisplay.classList.remove('hidden');
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+                lastChatDuration = Date.now() - startTime;
+                
+                // 记录对打时间 (毫秒)
+                if (lastChatDuration > 0) {
+                    leaderboardTimes.push(lastChatDuration);
+                }
+                
+                timerDisplay.classList.add('hidden');
+            }
+        }
+
+        function toggleDuelMode() {
+            const buttonContainer = bottomDuelModeButton.querySelector('div');
+            
+            if (isDuelMode) {
+                // 结束对打模式
+                stopTimer();
+                stopLoveScoreIncrease(); 
+                stopAudioPlayback();      
+                isDuelMode = false;
+                
+                duelModeText.innerText = '对打模式';
+                buttonContainer.classList.remove('bg-green-600', 'animate-pulse');
+                buttonContainer.classList.add('from-blue-400', 'to-cyan-300');
+                
+                const formattedDuration = formatTime(lastChatDuration);
+                showChat(`对打结束。本次时长为 ${formattedDuration}。`, 6000);
+
+            } else {
+                // 开始对打模式
+                startTimer();
+                startLoveScoreIncrease(); 
+                startAudioPlayback();     
+                isDuelMode = true;
+                
+                duelModeText.innerText = '对打中...';
+                buttonContainer.classList.remove('from-blue-400', 'to-cyan-300');
+                buttonContainer.classList.add('bg-green-600', 'animate-pulse');
+                showChat("对打模式已开启！录音开始播放，心动值正在积累... 💖", 4000);
+            }
+        }
+        
+        // --- 排行榜功能 ---
+        
+        function showLeaderboard() {
+            // 1. 清空并排序
+            leaderboardList.innerHTML = '';
+            // 按时长从大到小排序
+            leaderboardTimes.sort((a, b) => b - a);
+
+            if (leaderboardTimes.length === 0) {
+                leaderboardList.innerHTML = '<li class="text-center text-gray-400 py-4">暂无对打记录。</li>';
+            } else {
+                // 2. 填充列表
+                leaderboardTimes.forEach((duration, index) => {
+                    const formattedDuration = formatTime(duration);
+                    const listItem = document.createElement('li');
+                    
+                    let rankClass = 'text-gray-300';
+                    let rankIcon = '';
+                    if (index === 0) {
+                        rankIcon = '🥇';
+                        rankClass = 'text-yellow-400 font-bold';
+                    } else if (index === 1) {
+                        rankIcon = '🥈';
+                        rankClass = 'text-gray-300 font-bold';
+                    } else if (index === 2) {
+                        rankIcon = '🥉';
+                        rankClass = 'text-orange-400 font-bold';
+                    } else {
+                        rankIcon = (index + 1).toString().padStart(2, '0') + '.';
+                    }
+                    
+                    listItem.className = `flex justify-between items-center px-2 py-1 border-b border-white/10 ${rankClass}`;
+                    listItem.innerHTML = `
+                        <span class="text-sm">${rankIcon}</span>
+                        <span class="flex-grow ml-4">第 ${index + 1} 次对打</span>
+                        <span class="font-mono text-pink-300">${formattedDuration}</span>
+                    `;
+                    leaderboardList.appendChild(listItem);
+                });
+            }
+
+            // 3. 显示弹窗
+            leaderboardOverlay.style.display = 'flex';
+        }
+
+        function hideLeaderboard() {
+            leaderboardOverlay.style.display = 'none';
+        }
+
+
+        // --- 初始化 & 其他辅助函数 ---
+        
+        function initApp() {
+            renderContent(0); // 默认加载第一个内容
+            showChat(contentList[0].message, 4000);
+        }
+        window.onload = initApp;
+
+        let chatTimeout;
+        function showChat(text, duration = 3000) {
+            chatText.innerText = text;
+            chatBubble.classList.remove('chat-bubble-hidden');
+            chatBubble.classList.add('chat-bubble-visible');
+            clearTimeout(chatTimeout);
+            chatTimeout = setTimeout(() => {
+                chatBubble.classList.remove('chat-bubble-visible');
+                chatBubble.classList.add('chat-bubble-hidden');
+            }, duration);
+        }
+
+        function updateLoveScore(change) {
+            loveScore = Math.max(0, Math.min(99999, loveScore + change));
+        }
+
+    </script>
+</body>
+</html>
