@@ -15,18 +15,16 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            /* 确保页面至少有手机的高度，可以完整显示 */
             min-height: 100vh; 
             overflow: hidden;
         }
 
-        /* 手机框架 - 核心修改：缩小尺寸以适应100%缩放下的屏幕 */
+        /* 手机框架 - 缩小尺寸以适应100%缩放下的屏幕 */
         .phone-frame {
-            width: 340px; /* 缩小宽度 */
-            height: 700px; /* 缩小高度 */
+            width: 340px; 
+            height: 700px; 
             background: #000; 
             border-radius: 30px; 
-            /* 阴影和边框也随之调整，以适配新尺寸 */
             box-shadow: 0 0 0 7px #2c2c2c, 0 15px 40px rgba(0,0,0,0.8);
             position: relative;
             overflow: hidden;
@@ -42,7 +40,6 @@
             filter: brightness(0.98);
         }
 
-        /* 其他样式保持不变 */
         .glass-panel {
             background: rgba(20, 20, 20, 0.4);
             backdrop-filter: blur(20px);
@@ -233,11 +230,13 @@
         let loveScoreInterval = null;
         let lastChatDuration = null;
         let leaderboardTimes = []; 
+        let originalClickHandler = null; // 存储原始点击处理器
 
         // *** 音频控制 ***
-        const audioFile = new Audio('hzy.m4a'); // 确保文件存在
+        const audioFile = new Audio('hzy.m4a'); 
         let isPlaying = false;
         let progressInterval = null;
+        let audioPlayedOnce = false; // <<< 新增：标记音频是否首次成功播放
 
         // --- 数据配置 ---
         const contentList = [
@@ -254,7 +253,7 @@
         // --- 内容切换函数 ---
 
         function renderContent(index) {
-            contentWrapper.innerHTML = ''; // 清空现有内容
+            contentWrapper.innerHTML = ''; 
             const content = contentList[index];
 
             if (content.type === 'image') {
@@ -268,8 +267,8 @@
                 const video = document.createElement('video');
                 video.src = content.src;
                 video.className = 'full-content';
-                video.loop = true;      // 循环播放
-                video.muted = true;     // 静音
+                video.loop = true;      
+                video.muted = true;     
                 video.playsInline = true; 
                 video.autoplay = true;  
                 
@@ -280,6 +279,10 @@
         }
         
         function changeContent() {
+            if (isDuelMode) {
+                showChat("请先结束对打模式再更换内容。", 3000);
+                return;
+            }
             curtain.classList.add('curtain-visible');
             showChat("正在为你更换显示内容...", 1000); 
 
@@ -297,8 +300,8 @@
         }
 
         // --- 鼠标波纹效果函数 ---
+        // 原始的点击处理函数
         function handleImageClick(e) {
-            // 确保点击的不是控制元素
             if (e.target.closest('#topPanel') || e.target.closest('#audioProgressBar') || e.target.closest('.icon-btn') || e.target.closest('#leaderboardOverlay')) {
                 return;
             }
@@ -307,6 +310,9 @@
                 createWaveRipples(e);
             }
         }
+        // 存储原始的点击处理函数
+        originalClickHandler = handleImageClick;
+
 
         function createWaveRipples(e) {
             const rect = contentWrapper.getBoundingClientRect();
@@ -391,17 +397,18 @@
             audioProgressBar.classList.add('hidden');
         }
 
+        // <<< 播放音频函数 - 增加了成功标记
         function startAudioPlayback() {
-            if (!isPlaying) {
-                audioFile.play().then(() => {
-                    isPlaying = true;
-                    startProgressTracking();
-                }).catch(error => {
-                    console.error("Audio playback failed:", error);
-                    showChat("警告：播放录音失败，请检查文件路径（hzy.m4a）或浏览器限制。", 5000);
-                });
-            }
+            audioFile.play().then(() => {
+                isPlaying = true;
+                startProgressTracking();
+                audioPlayedOnce = true; // 成功播放，设置标记
+            }).catch(error => {
+                console.error("Audio playback failed, likely due to mobile autoplay policy:", error);
+                // 即使播放失败，我们也不在这里弹窗，因为逻辑会引导用户点击屏幕。
+            });
         }
+        // >>> 播放音频函数
 
         function stopAudioPlayback() {
             if (isPlaying) {
@@ -450,7 +457,6 @@
                 timerInterval = null;
                 lastChatDuration = Date.now() - startTime;
                 
-                // 记录对打时间 (毫秒)
                 if (lastChatDuration > 0) {
                     leaderboardTimes.push(lastChatDuration);
                 }
@@ -459,6 +465,7 @@
             }
         }
 
+        // <<< 对打模式开关 - 增加了手机端声音激活逻辑
         function toggleDuelMode() {
             const buttonContainer = bottomDuelModeButton.querySelector('div');
             
@@ -469,6 +476,9 @@
                 stopAudioPlayback();      
                 isDuelMode = false;
                 
+                // 恢复点击波纹功能
+                contentWrapper.onclick = originalClickHandler;
+                
                 duelModeText.innerText = '对打模式';
                 buttonContainer.classList.remove('bg-green-600', 'animate-pulse');
                 buttonContainer.classList.add('from-blue-400', 'to-cyan-300');
@@ -478,30 +488,60 @@
 
             } else {
                 // 开始对打模式
-                startTimer();
-                startLoveScoreIncrease(); 
-                startAudioPlayback();     
                 isDuelMode = true;
                 
                 duelModeText.innerText = '对打中...';
                 buttonContainer.classList.remove('from-blue-400', 'to-cyan-300');
                 buttonContainer.classList.add('bg-green-600', 'animate-pulse');
-                showChat("对打模式已开启！录音开始播放，心动值正在积累... 💖", 4000);
+                
+                // 1. 先启动计时器和心动值积累 (与声音无关)
+                startTimer();
+                startLoveScoreIncrease(); 
+
+                if (!audioPlayedOnce) {
+                    // 2. 如果音频未播放过 (手机端默认情况)，提示用户点击屏幕
+                    showChat("🎧 提示：手机需点击屏幕任意位置才能激活声音。请点击屏幕！", 8000);
+                    
+                    // 3. 临时覆盖点击事件，用于激活声音
+                    contentWrapper.onclick = (e) => {
+                         // 检查点击的不是控制区
+                         if (e.target.closest('#topPanel') || e.target.closest('#audioProgressBar') || e.target.closest('.icon-btn') || e.target.closest('#leaderboardOverlay')) {
+                            return;
+                         }
+
+                         // 恢复原始点击功能（波纹和心动值）
+                         contentWrapper.onclick = originalClickHandler; 
+                         handleImageClick(e); 
+                         
+                         // 尝试播放音频
+                         startAudioPlayback();
+                         
+                         // 如果这次点击成功播放，给出提示
+                         if (audioPlayedOnce) {
+                             showChat("✅ 声音已激活，对打模式开始！", 4000);
+                         } else {
+                             // 理论上这个分支在 iOS 上不应该出现
+                             showChat("⚠️ 声音激活失败，请检查手机是否静音。", 4000);
+                         }
+                    };
+                } else {
+                    // 4. 如果音频播放过 (电脑端或手机端第二次)，可以直接启动
+                    startAudioPlayback();
+                    showChat("对打模式已开启！录音开始播放，心动值正在积累... 💖", 4000);
+                }
             }
         }
+        // >>> 对打模式开关
         
         // --- 排行榜功能 ---
         
         function showLeaderboard() {
-            // 1. 清空并排序
             leaderboardList.innerHTML = '';
-            // 按时长从大到小排序
             leaderboardTimes.sort((a, b) => b - a);
 
             if (leaderboardTimes.length === 0) {
                 leaderboardList.innerHTML = '<li class="text-center text-gray-400 py-4">暂无对打记录。</li>';
             } else {
-                // 2. 填充列表
                 leaderboardTimes.forEach((duration, index) => {
                     const formattedDuration = formatTime(duration);
                     const listItem = document.createElement('li');
@@ -531,7 +571,6 @@
                 });
             }
 
-            // 3. 显示弹窗
             leaderboardOverlay.style.display = 'flex';
         }
 
@@ -543,8 +582,10 @@
         // --- 初始化 & 其他辅助函数 ---
         
         function initApp() {
-            renderContent(0); // 默认加载第一个内容
+            renderContent(0); 
             showChat(contentList[0].message, 4000);
+            // 确保页面加载时，使用正常的点击处理函数
+            contentWrapper.onclick = originalClickHandler; 
         }
         window.onload = initApp;
 
